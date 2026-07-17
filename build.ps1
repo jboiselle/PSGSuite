@@ -1,157 +1,263 @@
-﻿[cmdletbinding()]
+<#
+.SYNOPSIS
+Builds PSGSuite from source into BuildOutput/.
+
+.DESCRIPTION
+Compiles every function under PSGSuite/Private and PSGSuite/Public into a
+single psm1, copies the committed SDK assemblies from PSGSuite/lib, and
+updates the manifest's exported functions and aliases. Building requires no
+network access; the Google SDK DLLs are committed to the repo (refresh them
+with tools/Update-GoogleSDK.ps1).
+
+.PARAMETER Task
+Compile - build the module into BuildOutput/PSGSuite/<version> (always runs)
+Import  - import the compiled module into the current session (default)
+Test    - run the Pester test suite against the compiled module
+
+.EXAMPLE
+./build.ps1
+
+Compiles and imports the module.
+
+.EXAMPLE
+./build.ps1 -Task Test
+
+Compiles the module and runs the Pester tests against it.
+#>
+[CmdletBinding()]
 param(
-    [parameter( Position = 0)]
-    [ValidateSet('Init','Clean','Compile','Import','Test','Full','Deploy','Skip','Docs')]
+    [parameter(Position = 0)]
+    [ValidateSet('Compile', 'Import', 'Test')]
     [string[]]
-    $Task = @('Init','Clean','Compile','Import'),
-    [parameter()]
-    [Alias('nr','nor')]
-    [switch]$NoRestore,
-
-    [switch]$UpdateModules,
-    [switch]$Force,
-    [switch]$Help
+    $Task = @('Compile', 'Import')
 )
-$env:_BuildStart = Get-Date -Format 'o'
-$ModuleName = 'PSGSuite'
-$Dependencies = @{
-    Configuration     = '1.3.1'
-    psake             = '4.9.0'
-}
-if ($env:SYSTEM_STAGENAME -eq 'Build' -or -not (Test-Path Env:\TF_BUILD)) {
-    $Dependencies['PowerShellGet'] = '2.2.1'
-}
-$update = @{}
-$verbose = @{}
-if ($PSBoundParameters.ContainsKey('UpdateModules')) {
-    $update['UpdateModules'] = $PSBoundParameters['UpdateModules']
-}
-if ($PSBoundParameters.ContainsKey('Verbose')) {
-    $verbose['Verbose'] = $PSBoundParameters['Verbose']
-}
+$ErrorActionPreference = 'Stop'
 
-. ([System.IO.Path]::Combine($PSScriptRoot,"ci","AzurePipelinesHelpers.ps1"))
+$moduleName = 'PSGSuite'
+$sourceDir = Join-Path $PSScriptRoot $moduleName
+$manifest = Import-PowerShellDataFile (Join-Path $sourceDir "$moduleName.psd1")
+$outputDir = Join-Path $PSScriptRoot 'BuildOutput'
+$outputModDir = Join-Path $outputDir $moduleName
+$outputModVerDir = Join-Path $outputModDir $manifest.ModuleVersion
 
-if ($Help) {
-    Add-Heading "Getting help"
-    Write-BuildLog -c '"psake" | Resolve-Module @update @Verbose'
-    'psake' | Resolve-Module @update @verbose
-    Write-BuildLog "psake script tasks:"
-    Get-PSakeScriptTasks -buildFile "$PSScriptRoot\psake.ps1" |
-        Sort-Object -Property Name |
-        Format-Table -Property Name, Description, Alias, DependsOn
-}
-else {
-
-    $env:BuildProjectName = $ModuleName
-    $env:BuildScriptPath = $PSScriptRoot
-
-    if ($Task -contains 'Docs') {
-        $env:NoNugetRestore = $true
-    }
-    else {
-        $env:NoNugetRestore = $NoRestore
-    }
-
-    $global:PSDefaultParameterValues = @{
-        '*-Module:Verbose' = $false
-        'Import-Module:ErrorAction' = 'Stop'
-        'Import-Module:Force' = $true
-        'Import-Module:Verbose' = $false
-        'Install-Module:AllowClobber' = $true
-        'Install-Module:ErrorAction' = 'Stop'
-        'Install-Module:Force' = $true
-        'Install-Module:Scope' = 'CurrentUser'
-        'Install-Module:Repository' = 'PSGallery'
-        'Install-Module:Verbose' = $false
-    }
-    Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-
-    Add-EnvironmentSummary "Build started"
-    Set-BuildVariables
-
-    Add-Heading "Pulling module and build dependencies"
-    [hashtable[]]$moduleDependencies = @()
-    foreach ($module in $Dependencies.Keys) {
-        $moduleDependencies += @{
-            Name           = $module
-            MinimumVersion = $Dependencies[$module]
-        }
-    }
-    (Import-PowerShellDataFile ([System.IO.Path]::Combine($PSScriptRoot,$ModuleName,"$ModuleName.psd1"))).RequiredModules | ForEach-Object {
-        $item = $_
-        if ($item -is [hashtable] -and $Dependencies.Keys -notcontains $item.ModuleName) {
-            Write-BuildLog "Adding new dependency from PSD1: $($item.ModuleName)"
-            $hash = @{
-                Name = $item.ModuleName
-            }
-            if ($item.ContainsKey('ModuleVersion')) {
-                $hash['MinimumVersion'] = $item.ModuleVersion
-            }
-            $moduleDependencies += $hash
-        }
-        elseif ($item -is [string] -and $Dependencies.Keys -notcontains $item) {
-            $moduleDependencies += @{
-                Name = $item
-            }
-        }
-    }
+function Resolve-ModuleDependency {
+    param([string]$Name, [string]$MinimumVersion)
     try {
-        $null = Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false -ErrorAction Stop
+        Import-Module $Name -MinimumVersion $MinimumVersion -Verbose:$false
     }
     catch {
-        throw
+        Write-Host "Installing module dependency: $Name >= $MinimumVersion"
+        Install-Module $Name -MinimumVersion $MinimumVersion -Repository PSGallery -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
+        Import-Module $Name -MinimumVersion $MinimumVersion -Verbose:$false
+    }
+}
+
+# ---------------------------------------------------------------- Compile ----
+Write-Host "Compiling $moduleName $($manifest.ModuleVersion) to $outputModVerDir"
+Remove-Module $moduleName -Force -ErrorAction SilentlyContinue
+if (Test-Path $outputModDir) {
+    Remove-Item $outputModDir -Recurse -Force
+}
+New-Item -Path $outputModVerDir -ItemType Directory -Force | Out-Null
+
+$psm1 = Copy-Item -Path (Join-Path $sourceDir "$moduleName.psm1") -Destination (Join-Path $outputModVerDir "$moduleName.psm1") -PassThru
+$functionsToExport = @()
+foreach ($scope in @('Private', 'Public')) {
+    Get-ChildItem -Path (Join-Path $sourceDir $scope) -Filter '*.ps1' -Recurse -File | ForEach-Object {
+        [System.IO.File]::AppendAllText($psm1.FullName, ("$([System.IO.File]::ReadAllText($_.FullName))`n"))
+        if ($scope -eq 'Public') {
+            $functionsToExport += $_.BaseName
+            [System.IO.File]::AppendAllText($psm1.FullName, ("Export-ModuleMember -Function '$($_.BaseName)'`n"))
+        }
+    }
+}
+
+$aliasFile = Join-Path $sourceDir 'Aliases' "$moduleName.Aliases.ps1"
+$aliasHashContents = (Get-Content $aliasFile -Raw).Trim()
+$aliasesToExport = (. $aliasFile).Keys
+
+# Module footer: alias registration and config loading. Kept identical to what
+# the previous psake build appended.
+@"
+
+Import-GoogleSDK
+
+if (`$global:PSGSuiteKey -and `$MyInvocation.BoundParameters['Debug']) {
+    `$prevDebugPref = `$DebugPreference
+    `$DebugPreference = "Continue"
+    Write-Debug "```$global:PSGSuiteKey is set to a `$(`$global:PSGSuiteKey.Count * 8)-bit key!"
+    `$DebugPreference = `$prevDebugPref
+}
+
+`$aliasHash = $aliasHashContents
+
+foreach (`$key in `$aliasHash.Keys) {
+    try {
+        New-Alias -Name `$key -Value `$aliasHash[`$key] -Force
+    }
+    catch {
+        Write-Error "[ALIAS: `$(`$key)] `$(`$_.Exception.Message.ToString())"
+    }
+}
+
+Export-ModuleMember -Alias '*'
+
+if (!(Test-Path (Join-Path "~" ".scrthq"))) {
+    New-Item -Path (Join-Path "~" ".scrthq") -ItemType Directory -Force | Out-Null
+}
+
+if (`$PSVersionTable.ContainsKey('PSEdition') -and `$PSVersionTable.PSEdition -eq 'Core' -and !`$Global:PSGSuiteKey -and !`$IsWindows) {
+    if (!(Test-Path (Join-Path (Join-Path "~" ".scrthq") "BlockCoreCLREncryptionWarning.txt"))) {
+        Write-Warning "CoreCLR does not support DPAPI encryption! Setting a basic AES key to prevent errors. Please create a unique key as soon as possible as this will only obfuscate secrets from plain text in the Configuration, the key is not secure as is. If you would like to prevent this message from displaying in the future, run the following command:`n`nBlock-CoreCLREncryptionWarning`n"
+    }
+    `$Global:PSGSuiteKey = [Byte[]]@(1..16)
+    `$ConfigScope = "User"
+}
+
+if (`$Global:PSGSuiteKey -is [System.Security.SecureString]) {
+    `$Method = "SecureString"
+    if (!`$ConfigScope) {
+        `$ConfigScope = "Machine"
+    }
+}
+elseif (`$Global:PSGSuiteKey -is [System.Byte[]]) {
+    `$Method = "AES Key"
+    if (!`$ConfigScope) {
+        `$ConfigScope = "Machine"
+    }
+}
+else {
+    `$Method = "DPAPI"
+    `$ConfigScope = "User"
+}
+
+Add-MetadataConverter -Converters @{
+    [SecureString] = {
+        `$encParams = @{}
+        if (`$Global:PSGSuiteKey -is [System.Byte[]]) {
+            `$encParams["Key"] = `$Global:PSGSuiteKey
+        }
+        elseif (`$Global:PSGSuiteKey -is [System.Security.SecureString]) {
+            `$encParams["SecureKey"] = `$Global:PSGSuiteKey
+        }
+    'ConvertTo-SecureString "{0}"' -f (ConvertFrom-SecureString `$_ @encParams)
+    }
+    "Secure" = {
+        param([string]`$String)
+        `$encParams = @{}
+        if (`$Global:PSGSuiteKey -is [System.Byte[]]) {
+            `$encParams["Key"] = `$Global:PSGSuiteKey
+        }
+        elseif (`$Global:PSGSuiteKey -is [System.Security.SecureString]) {
+            `$encParams["SecureKey"] = `$Global:PSGSuiteKey
+        }
+        ConvertTo-SecureString `$String @encParams
+    }
+    "ConvertTo-SecureString" = {
+        param([string]`$String)
+        `$encParams = @{}
+        if (`$Global:PSGSuiteKey -is [System.Byte[]]) {
+            `$encParams["Key"] = `$Global:PSGSuiteKey
+        }
+        elseif (`$Global:PSGSuiteKey -is [System.Security.SecureString]) {
+            `$encParams["SecureKey"] = `$Global:PSGSuiteKey
+        }
+        ConvertTo-SecureString `$String @encParams
+    }
+}
+
+try {
+    `$confParams = @{
+        Scope = `$ConfigScope
+    }
+    if (`$ConfigName) {
+        `$confParams["ConfigName"] = `$ConfigName
+        `$Script:ConfigName = `$ConfigName
+    }
+    try {
+        if (`$global:PSGSuite) {
+            Write-Warning "Using config `$(if (`$global:PSGSuite.ConfigName){"name '`$(`$global:PSGSuite.ConfigName)' "})found in variable: ```$global:PSGSuite"
+            Write-Verbose "`$((`$global:PSGSuite | Format-List | Out-String).Trim())"
+            if (`$global:PSGSuite -is [System.Collections.Hashtable]) {
+                `$global:PSGSuite = New-Object PSObject -Property `$global:PSGSuite
+            }
+            `$script:PSGSuite = `$global:PSGSuite
+        }
+        else {
+            Get-PSGSuiteConfig @confParams -ErrorAction Stop
+        }
+    }
+    catch {
+        if (Test-Path "`$ModuleRoot\`$env:USERNAME-`$env:COMPUTERNAME-`$env:PSGSuiteDefaultDomain-PSGSuite.xml") {
+            Get-PSGSuiteConfig -Path "`$ModuleRoot\`$env:USERNAME-`$env:COMPUTERNAME-`$env:PSGSuiteDefaultDomain-PSGSuite.xml" -ErrorAction Stop
+            Write-Warning "No Configuration.psd1 found at scope '`$ConfigScope'; falling back to legacy XML. If you would like to convert your legacy XML to the newer Configuration.psd1, run the following command:`n`nGet-PSGSuiteConfig -Path '`$ModuleRoot\`$env:USERNAME-`$env:COMPUTERNAME-`$env:PSGSuiteDefaultDomain-PSGSuite.xml' -PassThru | Set-PSGSuiteConfig`n"
+        }
+        else {
+            Write-Warning "There was no config returned! Please make sure you are using the correct key or have a configuration already saved."
+        }
+    }
+}
+catch {
+    Write-Warning "There was no config returned! Please make sure you are using the correct key or have a configuration already saved."
+}
+
+"@ | Add-Content -Path $psm1 -Encoding UTF8
+
+Copy-Item -Path (Join-Path $sourceDir 'lib') -Destination $outputModVerDir -Recurse
+Copy-Item -Path (Join-Path $sourceDir "$moduleName.psd1") -Destination $outputModVerDir
+
+# Manifest validation needs the module's RequiredModules present
+Resolve-ModuleDependency -Name Configuration -MinimumVersion 1.3.1
+Update-ModuleManifest -Path (Join-Path $outputModVerDir "$moduleName.psd1") -FunctionsToExport ($functionsToExport | Sort-Object) -AliasesToExport ($aliasesToExport | Sort-Object)
+Write-Host "Compiled $($functionsToExport.Count) functions and $($aliasesToExport.Count) aliases"
+
+# ----------------------------------------------------------------- Import ----
+if ($Task -contains 'Import') {
+    Write-Host "Importing compiled module"
+    Import-Module (Join-Path $outputModVerDir "$moduleName.psd1") -Force -Global -Verbose:$false
+}
+
+# ------------------------------------------------------------------- Test ----
+if ($Task -contains 'Test') {
+    # The test suite is written for Pester 4
+    try {
+        Import-Module Pester -MinimumVersion 4.10.1 -MaximumVersion 4.99.99 -ErrorAction Stop -Verbose:$false
+    }
+    catch {
+        Write-Host "Installing Pester 4"
+        Install-Module Pester -RequiredVersion 4.10.1 -Repository PSGallery -Scope CurrentUser -Force -SkipPublisherCheck
+        Import-Module Pester -RequiredVersion 4.10.1 -Verbose:$false
     }
 
-    Add-Heading "Finalizing build prerequisites"
-    if ($Task -eq 'Deploy' -and $null -eq $env:NugetApiKey) {
-        "Task is 'Deploy', but conditions are not correct for deployment:`n" +
-        "    + NuGet API key is not null     : $($null -ne $env:NugetApiKey)`n" +
-        "Skipping psake for this job!" | Write-Host -ForegroundColor Yellow
-        exit 0
+    # Environment the test files expect
+    $env:BHProjectName = $moduleName
+    $env:BHProjectPath = $PSScriptRoot
+    $env:BHBranchName = "$(git rev-parse --abbrev-ref HEAD)".Trim()
+    $env:BHCommitMessage = (@(git log -1 --pretty=%B) -join "`n").Trim()
+
+    $pathSeparator = [System.IO.Path]::PathSeparator
+    $origModulePath = $env:PSModulePath
+    if ($env:PSModulePath.Split($pathSeparator) -notcontains $outputDir) {
+        $env:PSModulePath = $outputDir + $pathSeparator + $origModulePath
     }
-    else {
-        if ($Task -eq 'Deploy') {
-            "Task is 'Deploy' and conditions are correct for deployment:`n" +
-            "    + NuGet API key is not null     : $($null -ne $env:NugetApiKey)"| Write-Host -ForegroundColor Green
+    # Module functions branch on $ErrorActionPreference (throw vs Write-Error), and
+    # they resolve it from the global scope. The tests expect Stop, which the old
+    # psake harness set for the whole run.
+    $origGlobalEap = $global:ErrorActionPreference
+    $global:ErrorActionPreference = 'Stop'
+    try {
+        Remove-Module $moduleName -Force -ErrorAction SilentlyContinue
+        Import-Module $outputModDir -Force -Verbose:$false
+        Write-Host "Invoking Pester"
+        $testResults = Invoke-Pester -Path (Join-Path $PSScriptRoot 'Tests') -OutputFormat NUnitXml -OutputFile (Join-Path $outputDir 'TestResults.xml') -PassThru
+        if ($testResults.FailedCount -gt 0) {
+            $testResults.TestResult | Where-Object { -not $_.Passed } | Format-List | Out-String | Write-Host
+            throw "$($testResults.FailedCount) Pester test(s) failed."
         }
-        Write-BuildLog "Resolving necessary modules"
-        foreach ($module in $moduleDependencies) {
-            Write-BuildLog "[$($module.Name)] Resolving"
-            try {
-                Import-Module @module
-            }
-            catch {
-                Write-BuildLog "[$($module.Name)] Installing missing module"
-                Install-Module @module -Repository PSGallery
-                Import-Module @module
-            }
-        }
-        Write-BuildLog "Modules resolved"
-        if ($Task -eq 'TestOnly') {
-            $global:ExcludeTag = @('Module')
-        }
-        else {
-            $global:ExcludeTag = $null
-        }
-        if ($Force) {
-            $global:ForceDeploy = $true
-        }
-        else {
-            $global:ForceDeploy = $false
-        }
-        Add-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
-        $psakeParams = @{
-            buildFile = "$PSScriptRoot\psake.ps1"
-            taskList = $Task
-        }
-        Invoke-psake @psakeParams @verbose -parameters @{NoRestore = $NoRestore}
-        if (($Task -contains 'Import' -or $Task -contains 'Test') -and $psake.build_success) {
-            Add-Heading "Importing $env:BuildProjectName to local scope"
-            Import-Module ([System.IO.Path]::Combine($env:BHBuildOutput,$env:BHProjectName)) -Verbose:$false
-        }
-        Add-EnvironmentSummary "Build finished"
-        exit ( [int]( -not $psake.build_success ) )
+        Write-Host "All $($testResults.PassedCount) Pester tests passed"
+    }
+    finally {
+        $global:ErrorActionPreference = $origGlobalEap
+        $env:PSModulePath = $origModulePath
     }
 }

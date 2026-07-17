@@ -1,0 +1,44 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+permissions:
+  contents: read
+  issues: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Build and Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and test module
+        shell: pwsh
+        run: ./build.ps1 -Task Test
+
+      - name: Publish test results (${{ matrix.os }})
+        uses: EnricoMi/publish-unit-test-result-action/composite@v2
+        if: always()
+        continue-on-error: true
+        with:
+          check_name: Test Results - ${{ matrix.os }}
+          files: |
+            BuildOutput/TestResults.xml
