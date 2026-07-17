@@ -126,6 +126,10 @@
 
 ### Module Changes
 
+- Added `Get-GSAlert` to retrieve alerts from the Google Alert Center API (new `Alert Center` function category)
+    - Supports getting alerts by Id or listing all alerts with `-Filter`, `-OrderBy` and `-Limit` support (read-only; `alerts.list` / `alerts.get`, v1beta1)
+    - Requires the `https://www.googleapis.com/auth/apps.alerts` scope to be granted to the service account
+    - Adds the `Google.Apis.AlertCenter.v1beta1` assembly to `PSGSuite/lib` and to the package list in `tools/Update-GoogleSDK.ps1`
 - `Add-GSGmailDelegate` now supports adding Google Groups as delegates, which Gmail accepts server-side
     - Removed the failure-path check that assumed a group delegate was invalid and masked the underlying API error with a warning
     - Updated help and documentation to reflect that a delegate can be a user or a group

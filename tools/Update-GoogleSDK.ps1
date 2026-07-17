@@ -30,6 +30,7 @@ $packages = @(
     @{ Id = 'Google.Apis.Admin.DataTransfer.datatransfer_v1'; Version = 'latest' }
     @{ Id = 'Google.Apis.Admin.Directory.directory_v1'; Version = 'latest' }
     @{ Id = 'Google.Apis.Admin.Reports.reports_v1'; Version = 'latest' }
+    @{ Id = 'Google.Apis.AlertCenter.v1beta1'; Version = 'latest' }
     @{ Id = 'Google.Apis.Auth'; Version = 'latest' }
     @{ Id = 'Google.Apis.Calendar.v3'; Version = 'latest' }
     @{ Id = 'Google.Apis.Classroom.v1'; Version = 'latest' }
