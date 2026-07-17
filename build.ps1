@@ -23,6 +23,11 @@ Compiles and imports the module.
 ./build.ps1 -Task Test
 
 Compiles the module and runs the Pester tests against it.
+
+.NOTES
+Modification notice (Apache License 2.0, Section 4(b)): this build script
+was rewritten for the jboiselle/PSGSuite fork and replaces the upstream
+SCRT-HQ/PSGSuite psake-based build pipeline.
 #>
 [CmdletBinding()]
 param(

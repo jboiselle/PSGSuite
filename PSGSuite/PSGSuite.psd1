@@ -98,10 +98,10 @@
             Tags       = 'GSuite', 'Google', 'Apps', 'API', 'Drive', 'Gmail', 'Admin', 'Automation', 'PSEdition_Core', 'Windows', 'Linux', 'Mac'
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/SCRT-HQ/PSGSuite/blob/main/LICENSE'
+            LicenseUri = 'https://github.com/jboiselle/PSGSuite/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/SCRT-HQ/PSGSuite'
+            ProjectUri = 'https://github.com/jboiselle/PSGSuite'
 
             # A URL to an icon representing this module.
             IconUri    = 'http://centerlyne.com/wp-content/uploads/2016/10/Google_-G-_Logo.svg_.png'

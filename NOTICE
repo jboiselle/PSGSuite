@@ -1,0 +1,16 @@
+PSGSuite
+Copyright 2016-2024 SCRT HQ (Nate Ferrell) and contributors
+https://github.com/SCRT-HQ/PSGSuite
+
+This repository is an independently maintained fork of SCRT-HQ/PSGSuite,
+diverging from the upstream project at commit f95943c (May 2025).
+Modifications are Copyright 2026 the maintainers of this fork
+(https://github.com/jboiselle/PSGSuite) and are licensed under the
+Apache License, Version 2.0 — the same license as the original work.
+
+Files changed from upstream are recorded in this repository's git
+history; substantially rewritten files additionally carry a notice in
+their header, per Section 4(b) of the Apache License, Version 2.0.
+
+This repository bundles third-party .NET assemblies under PSGSuite/lib.
+See THIRD-PARTY-NOTICES.md for their attribution and license details.

@@ -5,8 +5,8 @@ site_author: Nate Ferrell
 site_url: https://psgsuite.io
 
 # Repository
-repo_name: SCRT-HQ/PSGSuite
-repo_url: https://github.com/SCRT-HQ/PSGSuite
+repo_name: jboiselle/PSGSuite
+repo_url: https://github.com/jboiselle/PSGSuite
 edit_uri: edit/main/docs
 
 # Copyright

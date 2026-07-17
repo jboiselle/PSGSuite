@@ -1,5 +1,11 @@
 # Powershell Gallery
 
+???+ warning
+    This fork is **not** published to the PowerShell Gallery. The `PSGSuite`
+    package on the Gallery is the upstream SCRT-HQ release, which is no longer
+    maintained and does not include this fork's changes. To install this fork,
+    see [Building From Source](building_from_source.md).
+
 * [PowerShell Gallery](https://www.powershellgallery.com/packages/PSGSuite)
 
 ## Powershell Gallery Requirements

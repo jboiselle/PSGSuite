@@ -1,5 +1,11 @@
 # GitHub Releases Page
 
+???+ warning
+    This fork does not currently publish GitHub releases. The releases linked
+    below belong to the upstream SCRT-HQ project, which is no longer maintained
+    and does not include this fork's changes. To install this fork, see
+    [Building From Source](building_from_source.md).
+
 ???+ info
     The GitHub releases page will likely be the same as the PowerShell Gallery. However, if you are looking for a specific version or a pre-release version, you may find it here first.
 

@@ -1,3 +1,5 @@
+- [Unreleased (fork)](#unreleased-fork)
+    - [Build & Repository Changes](#build--repository-changes)
 - [3.0.0 - 2024-11-20](#300---2024-11-20)
     - [Breaking Changes](#breaking-changes)
     - [Other Changes](#other-changes)
@@ -114,6 +116,21 @@
 ***
 
 # PSGSuite - ChangeLog
+
+## Unreleased (fork)
+
+> This repository is an independently maintained fork of
+> [SCRT-HQ/PSGSuite](https://github.com/SCRT-HQ/PSGSuite), diverging from
+> upstream after 3.0.1-beta (May 2025). See [NOTICE](NOTICE) for attribution.
+
+### Build & Repository Changes
+
+- Replaced the psake build pipeline (`psake.ps1`, `ci/` helper scripts) with a single self-contained `build.ps1` offering `Compile`, `Import` (default), and `Test` tasks
+    - The compiled module output is unchanged in shape: concatenated functions, per-function exports, and the same alias/config-loading footer
+- Committed the Google SDK assemblies under `PSGSuite/lib` (Google.Apis 1.74-1.75, plus the BouncyCastle/MimeKit/Newtonsoft.Json versions upstream pinned), so building no longer requires NuGet restores or network access
+    - Added `tools/Update-GoogleSDK.ps1` to refresh the committed DLLs from NuGet when newer SDK releases are wanted
+- Simplified CI to a single build+test workflow per OS (`.github/workflows/build-and-test.yml`); removed the PowerShell Gallery deploy and docs-publishing jobs, which do not apply to this fork
+- Added `NOTICE` and `THIRD-PARTY-NOTICES.md` for Apache 2.0 attribution and bundled-assembly licensing; updated `README.md` and `CONTRIBUTING.md` to reflect the fork and the new build process
 
 ## 3.0.0 - 2024-11-20
 

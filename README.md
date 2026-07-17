@@ -2,78 +2,71 @@
 
 > [!CAUTION]
 >
-> PSGSuite 3.0.0 and later **requires** Powershell 7.4 or newer
+> PSGSuite 3.0.0 and later **requires** PowerShell 7.4 or newer
+
+> [!NOTE]
 >
-> This is a breaking change introduced with PSGSuite 3.0.0. Please see the
-[CHANGELOG](./CHANGELOG.md) for more information.
+> This is an independently maintained fork of
+> [SCRT-HQ/PSGSuite](https://github.com/SCRT-HQ/PSGSuite), originally created
+> by Nate Ferrell (SCRT HQ). The upstream project is no longer actively
+> maintained; this fork exists to keep the module working. Many thanks to the
+> original authors and contributors — PSGSuite is distributed under the
+> [Apache 2.0 license](LICENSE) with attribution retained in [NOTICE](NOTICE).
 
 ***
 
-<div align="center">
-    <!-- Discord -->
-    <a href="https://discord.gg/G66zVG7">
-        <img src="https://img.shields.io/discord/235574673155293194.svg?style=flat&label=Discord&logo=discord&color=purple"
-            alt="Discord - Chat" title="Discord - Chat" />
-    </a>&nbsp;&nbsp;&nbsp;&nbsp;
-    <!-- Slack -->
-    <a href="https://scrthq-slack-invite.herokuapp.com/">
-        <img src="https://img.shields.io/badge/chat-on%20slack-orange.svg?style=flat&logo=slack" alt="Slack - Chat"
-            title="Slack - Chat" />
-    </a>
-    <br />
-    <br />
-    <!-- PS Gallery -->
-    <a href="https://www.PowerShellGallery.com/packages/PSGSuite">
-        <img src="https://img.shields.io/powershellgallery/dt/PSGSuite.svg?style=flat&logo=powershell&color=blue"
-            alt="PowerShell Gallery" title="PowerShell Gallery" />
-    </a>&nbsp;&nbsp;&nbsp;&nbsp;
-    <!-- GitHub Releases -->
-    <a href="https://github.com/scrthq/PSGSuite/releases/latest">
-        <img src="https://img.shields.io/github/downloads/scrthq/PSGSuite/total.svg?logo=github&color=blue"
-            alt="GitHub Releases" title="GitHub Releases" />
-    </a>&nbsp;&nbsp;&nbsp;&nbsp;
-    <!-- GitHub Releases -->
-    <a href="https://github.com/scrthq/PSGSuite/releases/latest">
-        <img src="https://img.shields.io/github/release/scrthq/PSGSuite.svg?label=version&logo=github"
-            alt="GitHub Releases" title="GitHub Releases" />
-    </a>
-</div>
-<br />
+PSGSuite is a PowerShell module wrapping Google's .NET SDKs in handy
+functions, enabling everything from Google Workspace SuperAdmins automating
+the administration of their multi-domain accounts down to individual Google
+account users sending Gmail messages or uploading content to Drive.
 
-***
+## Installation
+
+This fork is built from source — it is not published to the PowerShell
+Gallery. The Google SDK assemblies are committed to the repo, so building
+requires no network access (the `Configuration` module dependency is
+installed from the PowerShell Gallery automatically if missing):
+
+```powershell
+git clone https://github.com/jboiselle/PSGSuite.git
+cd PSGSuite
+./build.ps1   # compiles to BuildOutput/PSGSuite and imports it
+```
+
+To use the compiled module in other sessions, either import it by path:
+
+```powershell
+Import-Module ./BuildOutput/PSGSuite
+```
+
+or copy `BuildOutput/PSGSuite` into a directory on your `$env:PSModulePath`.
+
+## Building and testing
+
+| Command | What it does |
+| --- | --- |
+| `./build.ps1` | Compile the module and import it into the current session |
+| `./build.ps1 -Task Test` | Compile the module and run the Pester test suite |
+| `./tools/Update-GoogleSDK.ps1` | Refresh the committed Google SDK DLLs in `PSGSuite/lib` from NuGet |
 
 ## Documentation
 
-Check out [PSGSuite.io](https://psgsuite.io/) for PSGSuite documentation, including [configuration](https://psgsuite.io/pages/configuration) help as well as function help!
+The upstream documentation at [psgsuite.io](https://psgsuite.io/) remains the
+best reference for [configuration](https://psgsuite.io/pages/configuration)
+and per-function help. The same function help pages are in this repo under
+[docs/pages/function_help](docs/pages/function_help).
 
 ## Contributing
 
-Interested in helping out with PSGSuite development? Please check out our [Contribution Guidelines](https://github.com/scrthq/PSGSuite/blob/main/CONTRIBUTING.md)!
-
-## Code of Conduct
-
-Please adhere to our [Code of Conduct](https://github.com/scrthq/PSGSuite/blob/main/CODE_OF_CONDUCT.md) when interacting with this repo.
+See the [Contribution Guidelines](CONTRIBUTING.md) and please adhere to the
+[Code of Conduct](CODE_OF_CONDUCT.md) when interacting with this repo.
 
 ## License
 
-[Apache 2.0](https://tldrlegal.com/license/apache-license-2.0-(apache-2.0))
+[Apache 2.0](LICENSE). Attribution for the original work is retained in
+[NOTICE](NOTICE); licenses for the bundled third-party assemblies are listed
+in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Changelog
 
-[Full CHANGELOG here](https://github.com/scrthq/PSGSuite/blob/main/CHANGELOG.md)
-
-***
-
-### 3.0.0 - 2024-11-20
-
-#### Breaking Changes
-
-- Increased minimum PowerShell version to 7.4
-    - Necessary due to deprecation of support for .NET Framework 4.5 within the `Google.Apis.*` .NET assemblies used throughout PSGSuite
-    - Aligns minimum version of PowerShell with the current LTS release of PowerShell
-
-#### Other Changes
-
-- Restored release capabilities within the backing repository after adding additional owner ([@jgeron-suhsd](https://github.com/jgeron-suhsd))
-- Migrates the CI/CD pipeline from Azure Pipelines to GitHub Actions.
-    - We are currently adding additional maintainers to the project to restore overall project health and return to a regular release cadence, ultimately working through the backlog of issues, fixes and enhancements.
+[Full CHANGELOG here](CHANGELOG.md)
