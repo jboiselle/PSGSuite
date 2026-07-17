@@ -37,7 +37,20 @@ InModuleScope PSGSuite {
                 $result.AlertId | Should -Not -Contain 'alert-99'
             }
             It 'Should page through the full list when PageSize is smaller than the result set' {
-                (Get-GSAlert -PageSize 2).Count | Should -Be 5
+                (Get-GSAlert -PageSize 2 -All).Count | Should -Be 5
+            }
+        }
+        Context 'When Get-GSAlert returns the first page by default' {
+            It 'Should only return the first page when more results exist' {
+                (Get-GSAlert -PageSize 2 -WarningAction SilentlyContinue).Count | Should -Be 2
+            }
+            It 'Should warn when more results exist beyond the first page' {
+                $null = Get-GSAlert -PageSize 2 -WarningVariable warns -WarningAction SilentlyContinue
+                $warns | Should -Not -BeNullOrEmpty
+            }
+            It 'Should not warn when all results fit on the first page' {
+                $null = Get-GSAlert -WarningVariable warns -WarningAction SilentlyContinue
+                $warns | Should -BeNullOrEmpty
             }
         }
         Context 'When Get-GSAlert lists alerts with a filter' {

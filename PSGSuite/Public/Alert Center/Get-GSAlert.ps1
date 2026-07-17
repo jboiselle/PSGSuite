@@ -6,7 +6,11 @@ function Get-GSAlert {
     .DESCRIPTION
     Gets a specific alert or the list of alerts from the Google Alert Center.
 
-    The Alert Center API is currently a v1beta1 API. Requires the 'https://www.googleapis.com/auth/apps.alerts' scope to be granted to the service account in the Admin console's domain-wide delegation settings.
+    When listing, only the first page of alerts (up to -PageSize) is returned by default, since the Alert Center can hold a very large number of alerts. A warning is displayed if more alerts are available; use -All to retrieve every alert, -Limit to set a maximum, or -Filter to narrow the results.
+
+    The Alert Center API is currently a v1beta1 API. Using it requires both of the following on the service account:
+    1. The Google Workspace Alert Center API enabled in the service account's Google Cloud project
+    2. The 'https://www.googleapis.com/auth/apps.alerts' scope granted in the Admin console's domain-wide delegation settings
 
     .PARAMETER AlertId
     The unique Id of the alert(s) you would like to retrieve info for.
@@ -25,12 +29,20 @@ function Get-GSAlert {
     Page size of the result set
 
     .PARAMETER Limit
-    The maximum amount of results you want returned. Exclude or set to 0 to return all results
+    The maximum amount of results you want returned. Exclude or set to 0 to return the first page of results (see -All to return everything)
+
+    .PARAMETER All
+    If passed, returns all alerts instead of only the first page
 
     .EXAMPLE
     Get-GSAlert
 
-    Gets the list of alerts from the Alert Center
+    Gets the first page of alerts (up to -PageSize) from the Alert Center, warning if more alerts are available
+
+    .EXAMPLE
+    Get-GSAlert -All
+
+    Gets the full list of alerts from the Alert Center
 
     .EXAMPLE
     Get-GSAlert -Filter 'type = "Suspicious login"' -OrderBy 'createTime desc' -Limit 10
@@ -65,7 +77,10 @@ function Get-GSAlert {
         [parameter(Mandatory = $false,ParameterSetName = "List")]
         [Alias('First')]
         [Int]
-        $Limit = 0
+        $Limit = 0,
+        [parameter(Mandatory = $false,ParameterSetName = "List")]
+        [Switch]
+        $All
     )
     Begin {
         $serviceParams = @{
@@ -103,6 +118,12 @@ function Get-GSAlert {
                     if ($PSBoundParameters.ContainsKey('OrderBy')) {
                         $request.OrderBy = $OrderBy
                     }
+                    $firstPageOnly = $false
+                    if (-not $All -and $Limit -eq 0) {
+                        Write-Verbose "Returning the first page of results only. Use -All to retrieve all alerts."
+                        $Limit = $PageSize
+                        $firstPageOnly = $true
+                    }
                     if ($Limit -gt 0 -and $PageSize -gt $Limit) {
                         Write-Verbose ("Reducing PageSize from {0} to {1} to meet limit with first page" -f $PageSize,$Limit)
                         $PageSize = $Limit
@@ -130,6 +151,9 @@ function Get-GSAlert {
                         [int]$i = $i + $result.Alerts.Count
                     }
                     until ($overLimit -or !$result.NextPageToken)
+                    if ($firstPageOnly -and $result.NextPageToken) {
+                        Write-Warning "More alerts are available than were returned. Use -All to retrieve all alerts, -Limit to specify a maximum amount, or -Filter to narrow down the results."
+                    }
                 }
                 catch {
                     if ($ErrorActionPreference -eq 'Stop') {
