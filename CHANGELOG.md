@@ -1,4 +1,5 @@
 - [Unreleased (fork)](#unreleased-fork)
+    - [Module Changes](#module-changes)
     - [Build & Repository Changes](#build--repository-changes)
 - [3.0.0 - 2024-11-20](#300---2024-11-20)
     - [Breaking Changes](#breaking-changes)
@@ -122,6 +123,14 @@
 > This repository is an independently maintained fork of
 > [SCRT-HQ/PSGSuite](https://github.com/SCRT-HQ/PSGSuite), diverging from
 > upstream after 3.0.1-beta (May 2025). See [NOTICE](NOTICE) for attribution.
+
+### Module Changes
+
+- `Add-GSGmailDelegate` now supports adding Google Groups as delegates, which Gmail accepts server-side
+    - Removed the failure-path check that assumed a group delegate was invalid and masked the underlying API error with a warning
+    - Updated help and documentation to reflect that a delegate can be a user or a group
+- Removed `Update-GSSheet.ps1`, which was dead code since 2018: the file defined an unfinished function under a different name (`Submit-GSSheetBatchUpdateRequest`) whose body duplicated `New-GSSheet`, so the module manifest advertised an `Update-GSSheet` function that never existed
+    - Use `New-GSSheet` to create spreadsheets and `Export-GSSheet` to update sheet values
 
 ### Build & Repository Changes
 

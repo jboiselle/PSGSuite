@@ -1,14 +1,14 @@
 ﻿function Add-GSGmailDelegate {
     <#
     .SYNOPSIS
-    Adds a delegate with its verification status set directly to accepted, without sending any verification email. The delegate user must be a member of the same G Suite organization as the delegator user.
+    Adds a delegate with its verification status set directly to accepted, without sending any verification email. The delegate can be a user or a group in the same Google Workspace organization as the delegator user.
 
     .DESCRIPTION
-    Adds a delegate with its verification status set directly to accepted, without sending any verification email. The delegate user must be a member of the same G Suite organization as the delegator user.
+    Adds a delegate with its verification status set directly to accepted, without sending any verification email. The delegate can be a user or a group in the same Google Workspace organization as the delegator user.
 
-    Gmail imposes limtations on the number of delegates and delegators each user in a G Suite organization can have. These limits depend on your organization, but in general each user can have up to 25 delegates and up to 10 delegators.
+    Gmail imposes limtations on the number of delegates and delegators each user in a Google Workspace organization can have. These limits depend on your organization, but in general each user can have up to 25 delegates and up to 10 delegators.
 
-    Note that a delegate user must be referred to by their primary email address, and not an email alias.
+    Note that a delegate must be referred to by their primary email address, and not an email alias.
 
     Also note that when a new delegate is created, there may be up to a one minute delay before the new delegate is available for use.
 
@@ -16,12 +16,17 @@
     User's email address to delegate access to.
 
     .PARAMETER Delegate
-    Delegate's email address to receive delegate access.
+    Email address of the user or group to receive delegate access.
 
     .EXAMPLE
     Add-GSGmailDelegate -User tony@domain.com -Delegate peter@domain.com
 
     Provide Peter delegate access to Tony's inbox.
+
+    .EXAMPLE
+    Add-GSGmailDelegate -User tony@domain.com -Delegate accounting@domain.com
+
+    Provide the accounting group delegate access to Tony's inbox.
     #>
     [OutputType('Google.Apis.Gmail.v1.Data.Delegate')]
     [cmdletbinding()]
@@ -68,9 +73,6 @@
             $origError = $_
             if ($group = Get-GSGroup -Group $User -Verbose:$false -ErrorAction SilentlyContinue) {
                 Write-Warning "$User is a group email, not a user account. You can only manage delegate access for a user's inbox. Please add $Delegate to the group $User instead."
-            }
-            elseif ($group = Get-GSGroup -Group $Delegate -Verbose:$false -ErrorAction SilentlyContinue) {
-                Write-Warning "$Delegate is a group email, not a user account. You can only delegate access to other users."
             }
             else {
                 $dele = Get-GSGmailDelegates -User $User -NoGroupCheck -ErrorAction SilentlyContinue -Verbose:$false
